@@ -3,11 +3,6 @@
 import requests
 from requests.auth import HTTPBasicAuth
 
-JIRA_EMAIL = "dhivyaece2015@gmail.com"
-JIRA_API_TOKEN = "ATATT3xFfGF0WUTvek0FrxkdUYYR0l-Q96T75o0tvnoBxKVc0bJFUhqFMo_m830qzojOXbunLxNSf4_XG82ic4uYEDO480oTC5FMNiFWAfGb3nk8Q_qIYBrVKUnSaT-795tGOHAxMwsFjOhJLxzRyFMyq6Pw4i5r2ptCfw3aXX6fdaqQs-ZxtVs=DBC35E0F"
-JIRA_URL = "https://dhivya-sm-testing.atlassian.net"
-JIRA_PROJECT_KEY = "SCRUM"  # Use your actual project key
-
 def create_jira_ticket(summary, description):
     url = f"{JIRA_URL}/rest/api/3/issue"
     auth = HTTPBasicAuth(JIRA_EMAIL, JIRA_API_TOKEN)
