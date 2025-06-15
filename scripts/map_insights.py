@@ -11,23 +11,42 @@ def map_insights(df):
     ]
     return summary
 
+
 def generate_action_items(df):
-    actions = []
+    grouped_actions = {
+        "Negative": [],
+        "Positive": [],
+        "Neutral": []
+    }
 
     for _, row in df.iterrows():
-        sentiment = row['sentiment']
-        theme = row['theme']
+        sentiment = row["sentiment"]
+        theme = row["theme"]
 
         if sentiment == "Negative":
-            if theme == "Customer Service":
-                actions.append("Escalate to support team for poor service complaint.")
-            elif theme == "Hardware":
-                actions.append("Notify product team about hardware malfunction.")
-            elif theme == "Pricing":
-                actions.append("Send to marketing to review pricing feedback.")
+            if "service" in theme.lower():
+                grouped_actions["Negative"].append("Escalate to support team for poor service complaint.")
+            elif "hardware" in theme.lower():
+                grouped_actions["Negative"].append("Notify product team about hardware malfunction.")
+            elif "pricing" in theme.lower():
+                grouped_actions["Negative"].append("Send to marketing to review pricing feedback.")
+            elif "delivery" in theme.lower():
+                grouped_actions["Negative"].append("Investigate delivery delay issues.")
+            elif "software" in theme.lower():
+                grouped_actions["Negative"].append("Forward to software QA for investigation.")
             else:
-                actions.append("Route negative feedback to general quality control team.")
-        elif sentiment == "Positive" and theme != "Other":
-            actions.append(f"Promote as testimonial for {theme} area.")
+                grouped_actions["Negative"].append(f"Route negative feedback to {theme} team.")
 
-    return list(Counter(actions).items())  # Optional: consolidate repeated actions
+        elif sentiment == "Positive":
+            grouped_actions["Positive"].append(f"Promote as testimonial for {theme} area.")
+
+        elif sentiment == "Neutral":
+            grouped_actions["Neutral"].append(f"Note neutral feedback for {theme} area.")
+
+    # Count and sort
+    summarized = {}
+    for sentiment, actions in grouped_actions.items():
+        counts = Counter(actions)
+        summarized[sentiment] = sorted(counts.items(), key=lambda x: -x[1])
+
+    return summarized

@@ -49,6 +49,11 @@ st.dataframe(filtered[['Text', 'sentiment', 'theme']])
 
 # 📌 Action Item Suggestions
 st.subheader("🛠️ Suggested Action Items Based on Feedback")
-actions = generate_action_items(df)
-for action, count in actions:
-    st.markdown(f"- **{action}** — _{count} mentions_")
+
+actions_by_sentiment = generate_action_items(df)
+
+for sentiment, actions in actions_by_sentiment.items():
+    st.markdown(f"### {sentiment} Feedback")
+    action_df = pd.DataFrame(actions, columns=["Action Item", "Mentions"])
+    st.table(action_df)
+
