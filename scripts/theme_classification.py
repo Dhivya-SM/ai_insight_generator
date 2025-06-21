@@ -35,7 +35,7 @@ def classify_themes(df):
         elif any(word in text for word in ["compatible", "integration", "works with", "not working with"]):
             return "Compatibility"
         else:
-            return "Other"
+            return "Other/General"
 
     df['theme'] = df['clean_text'].apply(_classify)
     return df

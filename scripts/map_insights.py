@@ -1,4 +1,3 @@
-# scripts/map_insights.py
 from collections import Counter
 
 def map_insights(df):
@@ -50,3 +49,27 @@ def generate_action_items(df):
         summarized[sentiment] = sorted(counts.items(), key=lambda x: -x[1])
 
     return summarized
+
+
+# 🔍 New: Rule-based improvement suggestions from real comments
+def generate_suggestions_from_comments(df):
+    """
+    For each theme in negative feedback, extract sample complaints and generate a basic improvement suggestion.
+    """
+    suggestions = []
+
+    negative_df = df[df['sentiment'] == 'Negative']
+
+    for theme in negative_df['theme'].unique():
+        theme_df = negative_df[negative_df['theme'] == theme]
+        comments = theme_df['Text'].dropna().head(3).tolist()
+
+        if comments:
+            summary = " • ".join([text.strip()[:120] for text in comments])
+            suggestion_text = f"Sample Complaints: {summary}"
+        else:
+            suggestion_text = "No comment samples available."
+
+        suggestions.append((theme, len(theme_df), suggestion_text))
+
+    return suggestions
