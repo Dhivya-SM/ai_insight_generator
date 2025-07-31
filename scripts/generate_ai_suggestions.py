@@ -1,3 +1,5 @@
+#generate_ai_suggestions
+
 from transformers import pipeline
 
 # Load once

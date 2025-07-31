@@ -4,7 +4,7 @@ from scripts.sentiment_analysis import run_sentiment_analysis
 from scripts.theme_classification import classify_themes
 from scripts.map_insights import map_insights, generate_action_items
 from scripts.visualize_summary import plot_sentiment_theme_distribution
-from scripts.generate_ai_suggestions import generate_summarized_suggestions  # optional
+from scripts.generate_ai_suggestions import generate_bart_suggestions
 import pandas as pd
 
 
@@ -45,7 +45,7 @@ def main():
 
     # Optional: AI summarization preview
     print("\n🔹 Step 8: AI-generated improvement ideas (from comments):")
-    ai_suggestions = generate_summarized_suggestions(df)
+    ai_suggestions = generate_bart_suggestions(df)
     for theme, count, idea in ai_suggestions:
         print(f"\n📌 {theme} ({count} mentions):\n👉 {idea}")
 

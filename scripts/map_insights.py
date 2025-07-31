@@ -1,3 +1,4 @@
+#map insights
 from collections import Counter
 
 def map_insights(df):
