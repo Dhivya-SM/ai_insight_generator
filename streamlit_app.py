@@ -4,6 +4,13 @@ import plotly.express as px
 from scripts.map_insights import generate_action_items
 from scripts.generate_ai_suggestions import generate_bart_suggestions
 from jiraAutomation.create_jira_ticket import create_jira_ticket
+from scripts.reddit_stream import stream_reddit_comments
+from scripts.preprocess_data import preprocess_dataset
+from scripts.sentiment_analysis import run_sentiment_analysis
+from scripts.theme_classification import classify_themes
+import os
+
+st.set_page_config(layout="wide", page_title="AI-Powered Customer Insight Dashboard")
 
 # UI Styling
 st.markdown("""
@@ -19,25 +26,48 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.set_page_config(layout="wide", page_title="AI-Powered Customer Insight Dashboard")
-
-# Centered Title
+# Title
 st.markdown("<div style='text-align: center; font-size: 32px; font-weight: bold;'>📊 Dell Tweets Insight Dashboard</div>", unsafe_allow_html=True)
 
-# Load processed data
+# File paths
 DATA_PATH = "data/processed/dell_themes.csv"
+LIVE_PATH = "data/processed/live_themes.csv"
+
+# Sidebar source selector
+st.sidebar.title("📂 Data Source")
+data_source = st.sidebar.radio("Select Data Source:", ["Kaggle", "Live"])
 
 @st.cache_data
-def load_data():
+def load_kaggle_data():
     return pd.read_csv(DATA_PATH)
 
-df = load_data()
+@st.cache_data
+def load_live_data():
+    st.info("🔍 Fetching Live Reddit data...")
+    live_df = stream_reddit_comments(subreddit_name="technology", limit=100)
+    if not live_df.empty:
+        preprocess_dataset("data/raw/reddit_stream.csv", "data/processed/live_cleaned.csv")
+        run_sentiment_analysis("data/processed/live_cleaned.csv", "data/processed/live_sentiment.csv")
+        df = pd.read_csv("data/processed/live_sentiment.csv")
+        df = classify_themes(df)
+        df.to_csv(LIVE_PATH, index=False)
+        st.success(f"✅ Live data processed ({len(df)} records)")
+        return df
+    else:
+        st.error("⚠️ No live data fetched.")
+        return pd.DataFrame()
 
-# Top right checkbox
+# Load data based on source
+df = load_kaggle_data() if data_source == "Kaggle" else load_live_data()
+
+if df.empty:
+    st.warning("⚠️ No data available. Please check the source.")
+    st.stop()
+
+# Checkbox to show raw data
 col1, col2 = st.columns([10, 1])
 with col2:
     show_data = st.checkbox("Show raw data")
-
 if show_data:
     st.dataframe(df.head())
 
@@ -91,7 +121,6 @@ with col_f1:
 with col_f2:
     theme_filter = st.selectbox("Filter tweets by theme", options=["All"] + sorted(df['theme'].unique()))
 
-# Apply filters
 filtered = df.copy()
 if sent_filter != "All":
     filtered = filtered[filtered['sentiment'] == sent_filter]
@@ -105,90 +134,53 @@ with st.expander("📂 View Filtered Tweets"):
 # Suggested Action Items
 st.subheader("🛠️ Suggested Action Items Based on Feedback")
 actions_by_sentiment = generate_action_items(df)
-
 for sentiment, actions in actions_by_sentiment.items():
     st.markdown(f"### {sentiment} Feedback")
-
     if actions:
-        cleaned_actions = [
-            (action.replace("Promote as testimonial for ", "")
-                   .replace("Note neutral feedback for ", "")
-                   .replace("Route negative feedback to ", "")
-                   .replace("Escalate to support team for ", ""), count)
-            for action, count in actions
-        ]
+        cleaned_actions = [(a.replace("Promote as testimonial for ", "")
+                             .replace("Note neutral feedback for ", "")
+                             .replace("Route negative feedback to ", "")
+                             .replace("Escalate to support team for ", ""), c)
+                            for a, c in actions]
         action_df = pd.DataFrame(cleaned_actions, columns=["Action Area", "Mentions"])
         col1, col2 = st.columns([1, 1])
         with col1:
             st.dataframe(action_df.sort_values(by="Mentions", ascending=False))
         with col2:
-            fig = px.pie(
-                action_df,
-                names="Action Area",
-                values="Mentions",
-                hole=0.4,
-                title=f"{sentiment} Feedback Distribution",
-                color_discrete_sequence=px.colors.qualitative.Pastel
-            )
+            fig = px.pie(action_df, names="Action Area", values="Mentions", hole=0.4,
+                         title=f"{sentiment} Feedback Distribution",
+                         color_discrete_sequence=px.colors.qualitative.Pastel)
             st.plotly_chart(fig, use_container_width=True)
 
-# 🤖 AI-Powered Suggestions
+# AI Suggestions
 st.subheader("🤖 AI-Generated Action Suggestions (Negative)")
-
 with st.spinner("Generating suggestions using BART model..."):
-    from transformers import pipeline
-    from scripts.generate_ai_suggestions import generate_bart_suggestions
-
     ai_suggestions = generate_bart_suggestions(df)
-
 if ai_suggestions:
     ai_df = pd.DataFrame(ai_suggestions, columns=["Theme", "Mentions", "Suggested Action"])
     st.dataframe(ai_df, use_container_width=True)
-else:
-    st.warning("No suggestions generated.")
 
 # Jira Ticket Creation
-# 🚨 Suggested Jira Tickets Based on AI Suggestions
-st.subheader("🚨 Suggested Jira Tickets Based on AI Suggestions (Top 3 Negative Themes)")
 
-from scripts.generate_ai_suggestions import generate_bart_suggestions
+st.subheader("🚨 Suggested Jira Tickets (Top Negative Themes)")
 
-ai_suggestions = generate_bart_suggestions(df)
+if st.button("Create Test Jira Ticket"):
+    issue_key = create_jira_ticket("Python Test from Streamlit", "Testing from Streamlit app")
+    if issue_key:
+        st.success(f"✅ Created Jira ticket: {issue_key}")
+    else:
+        st.error("❌ Failed to create Jira ticket")
 
-if ai_suggestions:
-    for i, (theme, count, suggestion) in enumerate(ai_suggestions):
-        st.markdown(f"**{i+1}. {theme}** — {count} mentions")
-        if st.button(f"Create Jira Ticket for {theme}", key=f"ai_ticket_{i}"):
-            summary = f"Negative Feedback - {theme[:40]}"
-            description = suggestion
-            issue_key = create_jira_ticket(summary, description)
-            if issue_key:
-                st.success(f"✅ Jira ticket created: {issue_key}")
-            else:
-                st.error("❌ Failed to create Jira ticket.")
-else:
-    st.info("No AI-generated suggestions available to create Jira tickets.")
-
-# 📥 Export Action Items
+# Export Actions
 st.subheader("📥 Export Action Items")
-
 col_exp1, col_exp2 = st.columns([1, 1])
-
 with col_exp1:
-    export_sentiment = st.selectbox(
-        "Choose sentiment to export",
-        ["Negative", "Positive", "Neutral"],
-        key="export_sentiment"
-    )
-
+    export_sentiment = st.selectbox("Choose sentiment to export", ["Negative", "Positive", "Neutral"])
 with col_exp2:
     export_data = actions_by_sentiment.get(export_sentiment, [])
     if export_data:
         df_export = pd.DataFrame(export_data, columns=["Action", "Mentions"])
-        st.download_button(
-            label="📥 Download CSV",
-            data=df_export.to_csv(index=False),
-            file_name=f"{export_sentiment.lower()}_actions.csv",
-            mime='text/csv',
-            key="download_btn"
-        )
+        st.download_button(label="📥 Download CSV",
+                           data=df_export.to_csv(index=False),
+                           file_name=f"{export_sentiment.lower()}_actions.csv",
+                           mime='text/csv')
