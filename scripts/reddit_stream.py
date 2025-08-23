@@ -3,10 +3,12 @@ import os
 import pandas as pd
 from datetime import datetime
 from dotenv import load_dotenv
+import time
 
+# Load environment variables
 load_dotenv()
 
-# Reddit API setup
+# 🔹 Reddit API setup (shared across functions)
 reddit = praw.Reddit(
     client_id=os.getenv("REDDIT_CLIENT_ID"),
     client_secret=os.getenv("REDDIT_CLIENT_SECRET"),
@@ -17,29 +19,68 @@ reddit = praw.Reddit(
 
 OUTPUT_PATH = "data/raw/reddit_stream.csv"
 
-def stream_reddit_comments(subreddit_name="technology", limit=10):
-    print(f"🔍 Streaming from subreddit: {subreddit_name}")
-    subreddit = reddit.subreddit(subreddit_name)
+# Default subreddits if keyword search is not used
+SUBREDDITS = ["technology", "worldnews", "science", "dataisbeautiful", "AskReddit"]
 
-    data = []
-    for post in subreddit.new(limit=limit):
-        created_dt = datetime.utcfromtimestamp(post.created_utc).strftime('%Y-%m-%d %H:%M:%S')
-        
-        text_content = (post.title or "") + " " + (post.selftext or "")
-        
-        data.append({
-            "Datetime": created_dt,
-            "Tweet Id": post.id,
-            "Text": text_content.strip(),
-            "Username": str(post.author)
-        })
+def stream_reddit_comments(keyword=None, limit_per_subreddit=1000):
+    """
+    Fetch Reddit posts and comments.
+    If `keyword` is provided → site-wide search.
+    If not → fetch latest from default subreddits.
+    """
+    all_data = []
+    total_fetched = 0
 
-    df = pd.DataFrame(data)
-    
-    # Save in Kaggle-compatible format
-    df.to_csv(OUTPUT_PATH, index=False)
-    print(f"✅ Saved {len(df)} Reddit posts to {OUTPUT_PATH}")
+    if keyword:
+        print(f"🔍 Searching site-wide for '{keyword}'...")
+        posts = reddit.subreddit("all").search(keyword, limit=limit_per_subreddit)
+        subreddits_to_check = [(None, posts)]  # (subreddit_name, generator)
+    else:
+        subreddits_to_check = []
+        for sub in SUBREDDITS:
+            subreddit = reddit.subreddit(sub)
+            posts = subreddit.new(limit=limit_per_subreddit)
+            subreddits_to_check.append((sub, posts))
+
+    # Process each subreddit / search result
+    for sub_name, posts in subreddits_to_check:
+        if sub_name:
+            print(f"🔍 Fetching from r/{sub_name}")
+
+        for post in posts:
+            created_dt = datetime.utcfromtimestamp(post.created_utc).strftime('%Y-%m-%d %H:%M:%S')
+            text_content = (post.title or "") + " " + (post.selftext or "")
+
+            all_data.append({
+                "Datetime": created_dt,
+                "PostId": post.id,
+                "Text": text_content.strip(),
+                "Username": str(post.author)
+            })
+            total_fetched += 1
+
+            # Fetch top-level comments
+            post.comments.replace_more(limit=0)
+            for comment in post.comments[:5]:  # Limit comments per post
+                comment_dt = datetime.utcfromtimestamp(comment.created_utc).strftime('%Y-%m-%d %H:%M:%S')
+                all_data.append({
+                    "Datetime": comment_dt,
+                    "PostId": f"{post.id}_{comment.id}",
+                    "Text": comment.body.strip(),
+                    "Username": str(comment.author)
+                })
+                total_fetched += 1
+
+            time.sleep(0.2)  # Avoid hitting API rate limits
+
+    # Save results
+    df = pd.DataFrame(all_data)
+    df.drop_duplicates(subset=["PostId"], inplace=True)
+    df.to_csv(OUTPUT_PATH, index=False, encoding="utf-8")
+
+    print(f"✅ Saved {len(df)} records to {OUTPUT_PATH}")
     return df
 
 if __name__ == "__main__":
-    stream_reddit_comments()
+    # Example: Fetch Dell-specific data
+    stream_reddit_comments(keyword="dell", limit_per_subreddit=500)

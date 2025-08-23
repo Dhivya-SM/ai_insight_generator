@@ -1,4 +1,3 @@
-#sentiment analysis.py
 import pandas as pd
 from nltk.sentiment import SentimentIntensityAnalyzer
 import nltk
@@ -23,13 +22,19 @@ def run_sentiment_analysis(input_path, output_path):
         print("❌ 'clean_text' column not found. Run preprocessing first.")
         return
 
+    # Drop rows with NaN or empty 'clean_text'
+    df = df.dropna(subset=['clean_text'])
+    df = df[df['clean_text'].str.strip() != ""]
+
     analyzer = SentimentIntensityAnalyzer()
+    # Apply sentiment analysis on 'clean_text' column
     df['sentiment'] = df['clean_text'].apply(lambda x: get_sentiment(x, analyzer))
     
+    # Save the DataFrame with sentiment results
     df.to_csv(output_path, index=False)
     print(f"✅ Sentiment analysis saved to {output_path}")
 
 if __name__ == "__main__":
-    input_file = "data/processed/dell_sentiment.csv"
-    output_file = "data/processed/dell_sentiment.csv"  # Overwriting with sentiment column
+    input_file = "data/processed/dell_sentiment.csv"  # Input path to the CSV file
+    output_file = "data/processed/dell_sentiment_with_sentiment.csv"  # Output path for results
     run_sentiment_analysis(input_file, output_file)
